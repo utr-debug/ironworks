@@ -158,6 +158,25 @@
   .confirm-inline{color:var(--danger);font-size:12px;margin-top:6px;}
   .save-indicator{position:fixed;bottom:14px;right:16px;font-size:11px;color:var(--text-dim);opacity:0;transition:opacity 0.3s;}
   .save-indicator.show{opacity:1;}
+  .brand .tag{font-style:italic;}
+  .milestones{width:100%;display:flex;flex-wrap:wrap;gap:6px;}
+  .badge{
+    font-size:11px;padding:5px 9px;border-radius:3px;border:1px solid var(--line);
+    color:var(--text-dim);background:var(--panel-2);
+  }
+  .badge.unlocked{color:var(--gold-bright);border-color:var(--gold);}
+  .log-entry{font-size:12px;color:var(--text-dim);padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;}
+  .log-entry:last-child{border-bottom:none;}
+  .log-entry .time{color:var(--steel);white-space:nowrap;font-size:11px;}
+  textarea{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:8px 10px;border-radius:3px;font-family:inherit;font-size:13px;width:100%;
+    min-height:60px;resize:vertical;
+  }
+  .note-item{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:8px 10px;margin-bottom:8px;font-size:13px;}
+  .note-item .note-meta{display:flex;justify-content:space-between;color:var(--text-dim);font-size:11px;margin-bottom:4px;}
+  .note-item .note-del{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;}
+  .file-import{font-size:12px;color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -165,7 +184,7 @@
   <header>
     <div class="brand">
       <h1>IRONWORKS</h1>
-      <span class="tag">a one-smith operation</span>
+      <span class="tag" id="smithQuote">a one-smith operation</span>
     </div>
     <div class="stats-top">
       <div class="stat-block">
@@ -207,6 +226,7 @@
           <div class="val" id="clicksVal">0</div>
         </div>
       </div>
+      <div class="milestones" id="milestonesRow"></div>
     </div>
 
     <div class="panel-side">
@@ -234,6 +254,24 @@ const UPGRADE_DEFS = {
   furnace:    { name:'Blast furnace', desc:'+50% passive output', base:1500, mult:2.3, kind:'passive_mult', amount:0.5, max:6 }
 };
 
+const SMITH_QUOTES = [
+  'a one-smith operation',
+  '"Good steel doesn\'t hurry." — Old Rurik',
+  '"The fire forgives a slow hand, not a lazy one." — Old Rurik',
+  '"Every ingot remembers how it was struck." — Old Rurik',
+  '"Coin rusts. A trade well learned doesn\'t." — Old Rurik',
+  '"An apprentice who watches the flame learns twice." — Old Rurik'
+];
+
+const ACHIEVEMENTS = [
+  { id:'first', name:'First strike', test:s=>s.totalClicks>=1 },
+  { id:'hundred', name:'Steady hand (100 strikes)', test:s=>s.totalClicks>=100 },
+  { id:'thousand', name:'Journeyman (1,000 strikes)', test:s=>s.totalClicks>=1000 },
+  { id:'gold1k', name:'First thousand gold', test:s=>s.totalEarned>=1000 },
+  { id:'gold100k', name:'Small fortune (100k gold)', test:s=>s.totalEarned>=100000 },
+  { id:'allstore', name:'Master smith (owns everything)', test:s=>Object.keys(STORE_DEFS).every(k=>s.store[k]) }
+];
+
 const STORE_DEFS = {
   reinforcedAnvil: { name:'Reinforced anvil', desc:'A heavier anvil head. +3 gold per strike, permanently.', baseCost:250 },
   journeymanPapers:{ name:'Journeyman papers', desc:'Guild recognition. +15% to all gold earned.', baseCost:3000 },
@@ -251,9 +289,23 @@ function defaultState(){
     upgrades:{ hammer:0, apprentice:0, bellows:0, furnace:0 },
     store:{ reinforcedAnvil:false, journeymanPapers:false, guildBanner:false, masterForge:false },
     storeCostOverrides:{},
+    customStoreItems:{},
     settings:{ globalMultiplier:1, particlesEnabled:true },
+    godMode:false,
+    adminLog:[],
+    notes:[],
+    unlockedAchievements:[],
     createdAt: Date.now()
   };
+}
+
+function getAllStoreDefs(){
+  return Object.assign({}, STORE_DEFS, state.customStoreItems);
+}
+
+function logAdmin(action){
+  state.adminLog.unshift({ action, time: Date.now() });
+  state.adminLog = state.adminLog.slice(0, 25);
 }
 
 async function loadState(){
@@ -304,7 +356,8 @@ function upgradeCost(key){
 
 function storeCost(key){
   if(state.storeCostOverrides[key] != null) return state.storeCostOverrides[key];
-  return STORE_DEFS[key].baseCost;
+  const def = getAllStoreDefs()[key];
+  return def ? def.baseCost : 0;
 }
 
 function computeStats(){
@@ -313,7 +366,7 @@ function computeStats(){
   let clickMult = Math.pow(1 + UPGRADE_DEFS.bellows.amount, u.bellows) * (s.masterForge?2:1);
   let passiveBase = u.apprentice*1;
   let passiveMult = Math.pow(1 + UPGRADE_DEFS.furnace.amount, u.furnace) * (s.guildBanner?1.3:1);
-  let globalMult = (s.journeymanPapers?1.15:1) * (state.settings.globalMultiplier||1);
+  let globalMult = (s.journeymanPapers?1.15:1) * (state.settings.globalMultiplier||1) * (state.godMode?50:1);
   return {
     clickPower: clickBase * clickMult * globalMult,
     goldPerSec: passiveBase * passiveMult * globalMult
@@ -326,6 +379,7 @@ function strikeAnvil(e){
   state.totalEarned += stats.clickPower;
   state.totalClicks += 1;
   spawnSpark(e, '+' + fmt(stats.clickPower));
+  maybeRotateQuote();
   renderAll();
   queueSave();
 }
@@ -409,8 +463,9 @@ function renderUpgrades(){
 function renderStore(){
   const el = document.getElementById('tab-store');
   el.innerHTML = '';
-  Object.keys(STORE_DEFS).forEach(key=>{
-    const def = STORE_DEFS[key];
+  const defs = getAllStoreDefs();
+  Object.keys(defs).forEach(key=>{
+    const def = defs[key];
     const owned = state.store[key];
     const cost = storeCost(key);
     const affordable = !owned && state.gold >= cost;
@@ -431,6 +486,7 @@ function renderStore(){
 
 function renderAdmin(){
   const el = document.getElementById('tab-admin');
+  const defs = getAllStoreDefs();
   el.innerHTML = `
     <div class="admin-note">This console manages the local save on this device. Since the game isn't multiplayer yet, there's one player to oversee: you.</div>
 
@@ -448,20 +504,41 @@ function renderAdmin(){
     </div>
 
     <div class="admin-section">
+      <h3>Cheats</h3>
+      <div class="settings-row">
+        <span class="name">God mode (50x all income, for testing)</span>
+        <button class="toggle-owned ${state.godMode?'on':''}" onclick="adminToggleGodMode()">${state.godMode?'On':'Off'}</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
       <h3>Player record</h3>
       <div class="info-grid">
         <div class="info-cell"><div class="label">lifetime gold earned</div><div class="val">${fmt(state.totalEarned)}</div></div>
         <div class="info-cell"><div class="label">total strikes</div><div class="val">${state.totalClicks.toLocaleString()}</div></div>
         <div class="info-cell"><div class="label">upgrades owned</div><div class="val">${Object.values(state.upgrades).reduce((a,b)=>a+b,0)}</div></div>
-        <div class="info-cell"><div class="label">store items owned</div><div class="val">${Object.values(state.store).filter(Boolean).length} / ${Object.keys(STORE_DEFS).length}</div></div>
+        <div class="info-cell"><div class="label">store items owned</div><div class="val">${Object.values(state.store).filter(Boolean).length} / ${Object.keys(defs).length}</div></div>
         <div class="info-cell"><div class="label">save started</div><div class="val" style="font-size:13px;">${new Date(state.createdAt).toLocaleDateString()}</div></div>
         <div class="info-cell"><div class="label">current gold</div><div class="val">${fmt(state.gold)}</div></div>
       </div>
     </div>
 
     <div class="admin-section">
+      <h3>Manage upgrades</h3>
+      <div id="upgradeManageList"></div>
+    </div>
+
+    <div class="admin-section">
       <h3>Manage store</h3>
       <div id="storeManageList"></div>
+      <div class="admin-row" style="margin-top:10px;">
+        <input type="text" id="newItemName" placeholder="item name">
+        <input type="number" id="newItemCost" placeholder="cost">
+      </div>
+      <div class="admin-row">
+        <input type="text" id="newItemDesc" placeholder="description" style="width:260px;">
+        <button class="admin-btn" onclick="adminAddStoreItem()">Add custom item</button>
+      </div>
     </div>
 
     <div class="admin-section">
@@ -477,35 +554,106 @@ function renderAdmin(){
     </div>
 
     <div class="admin-section">
+      <h3>Backup</h3>
+      <div class="admin-row">
+        <button class="admin-btn" onclick="adminExportSave()">Export save file</button>
+        <label class="admin-btn" style="cursor:pointer;">
+          Import save file
+          <input type="file" id="importFile" accept="application/json" style="display:none;" onchange="adminImportSave(this.files[0])">
+        </label>
+      </div>
+      <div class="file-import">Export downloads a JSON backup. Import replaces your current save with the file's contents.</div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Notes and reports</h3>
+      <textarea id="noteInput" placeholder="Leave yourself a note, bug report, or balance idea..."></textarea>
+      <div class="admin-row" style="margin-top:8px;">
+        <button class="admin-btn" onclick="adminAddNote()">Save note</button>
+      </div>
+      <div id="notesList"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Action log</h3>
+      <div id="adminLogList"></div>
+    </div>
+
+    <div class="admin-section">
       <h3>Reset</h3>
       <button class="admin-btn danger" id="resetBtn" onclick="adminResetSave()">Reset save</button>
       <div id="resetConfirm" class="confirm-inline" style="display:none;">Click again to permanently erase this save.</div>
     </div>
   `;
 
-  const list = document.getElementById('storeManageList');
-  Object.keys(STORE_DEFS).forEach(key=>{
-    const def = STORE_DEFS[key];
-    const owned = state.store[key];
-    const cost = storeCost(key);
+  const upList = document.getElementById('upgradeManageList');
+  Object.keys(UPGRADE_DEFS).forEach(key=>{
+    const def = UPGRADE_DEFS[key];
     const row = document.createElement('div');
     row.className = 'store-manage-row';
     row.innerHTML = `
-      <span class="name">${def.name}</span>
+      <span class="name">${def.name} (level ${state.upgrades[key]}${def.max?'/'+def.max:''})</span>
+      <div class="ctrls">
+        <input type="number" min="0" ${def.max?'max="'+def.max+'"':''} value="${state.upgrades[key]}" onchange="adminSetUpgradeLevel('${key}', this.value)">
+        <button class="toggle-owned" onclick="adminSetUpgradeLevel('${key}', 0)">Reset</button>
+      </div>
+    `;
+    upList.appendChild(row);
+  });
+
+  const list = document.getElementById('storeManageList');
+  Object.keys(defs).forEach(key=>{
+    const def = defs[key];
+    const owned = state.store[key];
+    const cost = storeCost(key);
+    const isCustom = !!state.customStoreItems[key];
+    const row = document.createElement('div');
+    row.className = 'store-manage-row';
+    row.innerHTML = `
+      <span class="name">${def.name}${isCustom?' (custom)':''}</span>
       <div class="ctrls">
         <input type="number" value="${cost}" onchange="adminSetStoreCost('${key}', this.value)">
         <button class="toggle-owned ${owned?'on':''}" onclick="adminToggleOwned('${key}')">${owned?'Owned':'Not owned'}</button>
+        ${isCustom?'<button class="toggle-owned" onclick="adminDeleteStoreItem(\''+key+'\')">Delete</button>':''}
       </div>
     `;
     list.appendChild(row);
   });
 
+  const notesList = document.getElementById('notesList');
+  if(state.notes.length === 0){
+    notesList.innerHTML = '<div class="admin-note">No notes yet.</div>';
+  } else {
+    state.notes.forEach((n, i)=>{
+      const div = document.createElement('div');
+      div.className = 'note-item';
+      div.innerHTML = `
+        <div class="note-meta"><span>${new Date(n.time).toLocaleString()}</span><button class="note-del" onclick="adminDeleteNote(${i})">delete</button></div>
+        <div>${n.text.replace(/</g,'&lt;')}</div>
+      `;
+      notesList.appendChild(div);
+    });
+  }
+
+  const logList = document.getElementById('adminLogList');
+  if(state.adminLog.length === 0){
+    logList.innerHTML = '<div class="admin-note">No actions logged yet.</div>';
+  } else {
+    logList.innerHTML = state.adminLog.map(l=>`
+      <div class="log-entry"><span>${l.action}</span><span class="time">${new Date(l.time).toLocaleTimeString()}</span></div>
+    `).join('');
+  }
+
   document.getElementById('globalMultSlider').addEventListener('input', (e)=>{
     state.settings.globalMultiplier = parseFloat(e.target.value);
-    e.target.previousElementSibling ? null : null;
     document.querySelector('#tab-admin .settings-row .name').textContent =
       `Global income multiplier (${state.settings.globalMultiplier.toFixed(2)}x)`;
     updateTopStats();
+    queueSave();
+  });
+  document.getElementById('globalMultSlider').addEventListener('change', ()=>{
+    logAdmin(`Set global multiplier to ${state.settings.globalMultiplier.toFixed(2)}x`);
+    renderAdmin();
     queueSave();
   });
 }
@@ -518,7 +666,9 @@ function adminResetSave(){
     setTimeout(()=>{ resetArmed = false; document.getElementById('resetConfirm').style.display='none'; }, 4000);
     return;
   }
+  const carryLog = [{ action:'Save reset', time: Date.now() }];
   state = defaultState();
+  state.adminLog = carryLog;
   resetArmed = false;
   renderAll();
   queueSave();
@@ -529,6 +679,7 @@ function adminGrantGold(){
   if(isNaN(v) || v <= 0) return;
   state.gold += v;
   state.totalEarned += v;
+  logAdmin(`Granted ${fmt(v)} gold`);
   renderAll();
   queueSave();
 }
@@ -536,6 +687,7 @@ function adminRemoveGold(){
   const v = parseFloat(document.getElementById('grantAmount').value);
   if(isNaN(v) || v <= 0) return;
   state.gold = Math.max(0, state.gold - v);
+  logAdmin(`Removed ${fmt(v)} gold`);
   renderAll();
   queueSave();
 }
@@ -543,11 +695,13 @@ function adminSetGold(){
   const v = parseFloat(document.getElementById('setAmount').value);
   if(isNaN(v) || v < 0) return;
   state.gold = v;
+  logAdmin(`Set gold to ${fmt(v)}`);
   renderAll();
   queueSave();
 }
 function adminToggleOwned(key){
   state.store[key] = !state.store[key];
+  logAdmin(`${state.store[key]?'Marked owned':'Marked not owned'}: ${getAllStoreDefs()[key].name}`);
   renderAll();
   queueSave();
 }
@@ -555,12 +709,103 @@ function adminSetStoreCost(key, val){
   const v = parseInt(val, 10);
   if(isNaN(v) || v < 0) return;
   state.storeCostOverrides[key] = v;
+  logAdmin(`Set price of ${getAllStoreDefs()[key].name} to ${fmt(v)}`);
+  renderAdmin();
   queueSave();
 }
 function adminToggleParticles(){
   state.settings.particlesEnabled = !state.settings.particlesEnabled;
+  logAdmin(`Spark effects ${state.settings.particlesEnabled?'enabled':'disabled'}`);
   renderAdmin();
   queueSave();
+}
+function adminToggleGodMode(){
+  state.godMode = !state.godMode;
+  logAdmin(`God mode ${state.godMode?'enabled':'disabled'}`);
+  renderAll();
+  queueSave();
+}
+function adminSetUpgradeLevel(key, val){
+  const def = UPGRADE_DEFS[key];
+  let v = parseInt(val, 10);
+  if(isNaN(v) || v < 0) v = 0;
+  if(def.max) v = Math.min(v, def.max);
+  state.upgrades[key] = v;
+  logAdmin(`Set ${def.name} to level ${v}`);
+  renderAll();
+  queueSave();
+}
+function adminAddStoreItem(){
+  const name = document.getElementById('newItemName').value.trim();
+  const cost = parseInt(document.getElementById('newItemCost').value, 10);
+  const desc = document.getElementById('newItemDesc').value.trim() || 'A custom item added from the overseer console.';
+  if(!name || isNaN(cost) || cost < 0) return;
+  const key = 'custom_' + Date.now();
+  state.customStoreItems[key] = { name, desc, baseCost: cost };
+  state.store[key] = false;
+  logAdmin(`Added custom store item: ${name}`);
+  renderAll();
+  queueSave();
+}
+function adminDeleteStoreItem(key){
+  delete state.customStoreItems[key];
+  delete state.store[key];
+  delete state.storeCostOverrides[key];
+  logAdmin(`Deleted custom store item`);
+  renderAll();
+  queueSave();
+}
+function adminAddNote(){
+  const val = document.getElementById('noteInput').value.trim();
+  if(!val) return;
+  state.notes.unshift({ text: val, time: Date.now() });
+  document.getElementById('noteInput').value = '';
+  logAdmin('Added a note');
+  renderAdmin();
+  queueSave();
+}
+function adminDeleteNote(index){
+  state.notes.splice(index, 1);
+  renderAdmin();
+  queueSave();
+}
+function adminExportSave(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ironworks-save-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  logAdmin('Exported save file');
+  renderAdmin();
+  queueSave();
+}
+function adminImportSave(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      state = Object.assign(defaultState(), parsed);
+      state.upgrades = Object.assign(defaultState().upgrades, parsed.upgrades||{});
+      state.store = Object.assign(defaultState().store, parsed.store||{});
+      state.settings = Object.assign(defaultState().settings, parsed.settings||{});
+      state.customStoreItems = parsed.customStoreItems || {};
+      state.storeCostOverrides = parsed.storeCostOverrides || {};
+      state.notes = parsed.notes || [];
+      state.adminLog = parsed.adminLog || [];
+      logAdmin('Imported save file');
+      renderAll();
+      queueSave();
+    } catch(err){
+      logAdmin('Import failed: file was not a valid save');
+      renderAdmin();
+    }
+  };
+  reader.readAsText(file);
 }
 
 function updateTopStats(){
@@ -574,10 +819,33 @@ function updateTopStats(){
   document.getElementById('clicksVal').textContent = state.totalClicks.toLocaleString();
 }
 
+function renderMilestones(){
+  const el = document.getElementById('milestonesRow');
+  el.innerHTML = '';
+  ACHIEVEMENTS.forEach(a=>{
+    const unlocked = a.test(state);
+    if(unlocked && !state.unlockedAchievements.includes(a.id)){
+      state.unlockedAchievements.push(a.id);
+    }
+    const b = document.createElement('span');
+    b.className = 'badge' + (unlocked ? ' unlocked' : '');
+    b.textContent = a.name;
+    el.appendChild(b);
+  });
+}
+
+function maybeRotateQuote(){
+  if(state.totalClicks > 0 && state.totalClicks % 25 === 0){
+    const q = SMITH_QUOTES[Math.floor(Math.random()*SMITH_QUOTES.length)];
+    document.getElementById('smithQuote').textContent = q;
+  }
+}
+
 function renderAll(){
   updateTopStats();
   renderUpgrades();
   renderStore();
+  renderMilestones();
   if(adminVisible) renderAdmin();
 }
 
