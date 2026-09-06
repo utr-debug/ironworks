@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ironworks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15120F;
+    --panel:#1F1A16;
+    --panel-2:#28211B;
+    --line:#3A322A;
+    --ember:#C2410C;
+    --ember-dim:#7A2A0A;
+    --gold:#C9A227;
+    --gold-bright:#E8C158;
+    --steel:#8B98A1;
+    --text:#EDE6DB;
+    --text-dim:#A69A8C;
+    --good:#6B9B5C;
+    --danger:#B33A3A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    background-image:
+      linear-gradient(var(--bg),var(--bg)),
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 12px);
+  }
+  .display{font-family:'Oswald', sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 60px;}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:20px;
+    flex-wrap:wrap;gap:12px;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand h1{
+    font-family:'Oswald', sans-serif;font-weight:700;font-size:26px;
+    letter-spacing:0.5px;margin:0;color:var(--text);
+  }
+  .brand span.tag{color:var(--text-dim);font-size:13px;}
+  .stats-top{display:flex;gap:22px;align-items:center;}
+  .stat-block{text-align:right;}
+  .stat-block .label{font-size:11px;color:var(--text-dim);text-transform:lowercase;}
+  .stat-block .val{font-family:'Oswald', sans-serif;font-size:22px;font-weight:600;}
+  .val.gold{color:var(--gold-bright);}
+  .val.rate{color:var(--steel);font-size:15px;font-weight:500;}
+  .admin-toggle{
+    background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    padding:8px 12px;border-radius:3px;cursor:pointer;font-size:13px;font-family:inherit;
+  }
+  .admin-toggle:hover{border-color:var(--steel);color:var(--text);}
+  .admin-toggle.active{border-color:var(--ember);color:var(--ember);}
+
+  .game{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  @media (max-width:760px){ .game{grid-template-columns:1fr;} }
+
+  .forge-panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:24px;
+    display:flex;flex-direction:column;align-items:center;gap:18px;
+  }
+  .anvil-btn{
+    width:190px;height:190px;border-radius:6px;
+    background:var(--panel-2);border:2px solid var(--ember);
+    cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;transition:transform 0.05s ease, background 0.15s ease;
+    -webkit-tap-highlight-color:transparent;user-select:none;
+  }
+  .anvil-btn:active{transform:scale(0.96);background:#332720;}
+  .anvil-btn svg{width:64px;height:64px;}
+  .anvil-btn .strike-label{font-family:'Oswald', sans-serif;font-size:15px;letter-spacing:0.5px;color:var(--text);}
+  .anvil-btn .per-strike{font-size:12px;color:var(--gold-bright);}
+
+  .forge-readout{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .readout-cell{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:10px 12px;}
+  .readout-cell .label{font-size:11px;color:var(--text-dim);}
+  .readout-cell .val{font-family:'Oswald', sans-serif;font-size:17px;margin-top:2px;}
+
+  .spark{
+    position:fixed;pointer-events:none;font-family:'Oswald', sans-serif;font-weight:600;
+    color:var(--gold-bright);font-size:15px;opacity:1;
+    animation:rise 0.7s ease-out forwards;
+  }
+  @keyframes rise{ to{ transform:translateY(-42px); opacity:0; } }
+
+  .panel-side{background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden;}
+  .tabs{display:flex;border-bottom:1px solid var(--line);}
+  .tab-btn{
+    flex:1;background:transparent;border:none;color:var(--text-dim);padding:12px 8px;
+    font-family:'Oswald', sans-serif;font-size:13px;letter-spacing:0.4px;cursor:pointer;
+    border-bottom:2px solid transparent;
+  }
+  .tab-btn.active{color:var(--text);border-bottom-color:var(--ember);}
+  .tab-btn:hover:not(.active){color:var(--text);}
+
+  .tab-content{padding:16px;display:none;}
+  .tab-content.active{display:block;}
+
+  .item-row{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:12px 0;border-bottom:1px solid var(--line);
+  }
+  .item-row:last-child{border-bottom:none;}
+  .item-info .name{font-size:14px;font-weight:600;}
+  .item-info .desc{font-size:12px;color:var(--text-dim);margin-top:2px;}
+  .item-info .level{font-size:11px;color:var(--steel);margin-top:3px;}
+  .buy-btn{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:9px 14px;border-radius:3px;cursor:pointer;font-family:'Oswald', sans-serif;
+    font-size:13px;min-width:92px;text-align:center;white-space:nowrap;
+  }
+  .buy-btn:hover:not(:disabled){border-color:var(--gold);}
+  .buy-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .buy-btn .cost{display:block;font-size:11px;color:var(--gold-bright);margin-top:2px;}
+  .buy-btn.owned{border-color:var(--good);color:var(--good);cursor:default;}
+
+  .admin-section{margin-bottom:22px;}
+  .admin-section h3{
+    font-family:'Oswald', sans-serif;font-size:14px;margin:0 0 10px;color:var(--ember);
+    letter-spacing:0.4px;font-weight:600;
+  }
+  .admin-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;}
+  .admin-row input[type=number], .admin-row input[type=text]{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:8px 10px;border-radius:3px;font-family:inherit;font-size:13px;width:130px;
+  }
+  .admin-btn{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    padding:8px 12px;border-radius:3px;cursor:pointer;font-family:inherit;font-size:13px;
+  }
+  .admin-btn:hover{border-color:var(--steel);}
+  .admin-btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+  .admin-note{font-size:12px;color:var(--text-dim);line-height:1.5;margin-bottom:12px;}
+  .store-manage-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .store-manage-row:last-child{border-bottom:none;}
+  .store-manage-row .name{font-size:13px;}
+  .store-manage-row .ctrls{display:flex;gap:6px;align-items:center;}
+  .store-manage-row input{width:80px;}
+  .toggle-owned{font-size:12px;background:var(--panel-2);border:1px solid var(--line);color:var(--text-dim);padding:6px 10px;border-radius:3px;cursor:pointer;}
+  .toggle-owned.on{color:var(--good);border-color:var(--good);}
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .info-cell{background:var(--panel-2);border:1px solid var(--line);border-radius:3px;padding:10px 12px;}
+  .info-cell .label{font-size:11px;color:var(--text-dim);}
+  .info-cell .val{font-family:'Oswald', sans-serif;font-size:16px;margin-top:2px;}
+  .settings-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
+  .settings-row:last-child{border-bottom:none;}
+  .settings-row .name{font-size:13px;}
+  input[type=range]{width:140px;}
+  .confirm-inline{color:var(--danger);font-size:12px;margin-top:6px;}
+  .save-indicator{position:fixed;bottom:14px;right:16px;font-size:11px;color:var(--text-dim);opacity:0;transition:opacity 0.3s;}
+  .save-indicator.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>IRONWORKS</h1>
+      <span class="tag">a one-smith operation</span>
+    </div>
+    <div class="stats-top">
+      <div class="stat-block">
+        <div class="label">gold</div>
+        <div class="val gold" id="goldDisplay">0</div>
+        <div class="val rate" id="rateDisplay">+0.0/s</div>
+      </div>
+      <button class="admin-toggle" id="adminToggleBtn" onclick="toggleAdminTab()">Overseer console</button>
+    </div>
+  </header>
+
+  <div class="game">
+    <div class="forge-panel">
+      <button class="anvil-btn" id="anvilBtn" onclick="strikeAnvil(event)" aria-label="Strike the anvil to earn gold">
+        <svg viewBox="0 0 64 64" fill="none" stroke="var(--steel)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 44h30l6-8h14v8l-4 4H10z"/>
+          <path d="M20 48v8h6v-8"/>
+          <path d="M36 20l10-10 6 6-10 10"/>
+          <path d="M44 8l6 6"/>
+        </svg>
+        <span class="strike-label">Strike the anvil</span>
+        <span class="per-strike" id="perStrikeLabel">+1 gold</span>
+      </button>
+      <div class="forge-readout">
+        <div class="readout-cell">
+          <div class="label">gold per strike</div>
+          <div class="val" id="clickPowerVal">1.0</div>
+        </div>
+        <div class="readout-cell">
+          <div class="label">gold per second</div>
+          <div class="val" id="goldPerSecVal">0.0</div>
+        </div>
+        <div class="readout-cell">
+          <div class="label">lifetime forged</div>
+          <div class="val" id="lifetimeVal">0</div>
+        </div>
+        <div class="readout-cell">
+          <div class="label">total strikes</div>
+          <div class="val" id="clicksVal">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-side">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="upgrades" onclick="switchTab('upgrades')">Upgrades</button>
+        <button class="tab-btn" data-tab="store" onclick="switchTab('store')">Store</button>
+        <button class="tab-btn" id="adminTabBtn" data-tab="admin" onclick="switchTab('admin')" style="display:none;">Overseer</button>
+      </div>
+
+      <div class="tab-content active" id="tab-upgrades"></div>
+      <div class="tab-content" id="tab-store"></div>
+      <div class="tab-content" id="tab-admin"></div>
+    </div>
+  </div>
+</div>
+<div class="save-indicator" id="saveIndicator">progress saved</div>
+
+<script>
+const SAVE_KEY = 'ironworks_save_v1';
+
+const UPGRADE_DEFS = {
+  hammer:     { name:'Steel hammer', desc:'+1 gold per strike', base:15, mult:1.15, kind:'click_flat', amount:1 },
+  apprentice: { name:'Apprentice smith', desc:'+1 gold per second', base:60, mult:1.17, kind:'passive_flat', amount:1 },
+  bellows:    { name:'Great bellows', desc:'+25% strike power', base:800, mult:2.5, kind:'click_mult', amount:0.25, max:6 },
+  furnace:    { name:'Blast furnace', desc:'+50% passive output', base:1500, mult:2.3, kind:'passive_mult', amount:0.5, max:6 }
+};
+
+const STORE_DEFS = {
+  reinforcedAnvil: { name:'Reinforced anvil', desc:'A heavier anvil head. +3 gold per strike, permanently.', baseCost:250 },
+  journeymanPapers:{ name:'Journeyman papers', desc:'Guild recognition. +15% to all gold earned.', baseCost:3000 },
+  guildBanner:     { name:'Guild banner', desc:'Apprentices work harder under the banner. +30% passive output.', baseCost:9000 },
+  masterForge:     { name:'Master forge certification', desc:'Doubles your strike power, permanently.', baseCost:40000 }
+};
+
+let state = null;
+let saveTimer = null;
+let adminVisible = false;
+
+function defaultState(){
+  return {
+    gold:0, totalEarned:0, totalClicks:0,
+    upgrades:{ hammer:0, apprentice:0, bellows:0, furnace:0 },
+    store:{ reinforcedAnvil:false, journeymanPapers:false, guildBanner:false, masterForge:false },
+    storeCostOverrides:{},
+    settings:{ globalMultiplier:1, particlesEnabled:true },
+    createdAt: Date.now()
+  };
+}
+
+async function loadState(){
+  try{
+    const res = await window.storage.get(SAVE_KEY, false);
+    if(res && res.value){
+      const loaded = JSON.parse(res.value);
+      state = Object.assign(defaultState(), loaded);
+      state.upgrades = Object.assign(defaultState().upgrades, loaded.upgrades||{});
+      state.store = Object.assign(defaultState().store, loaded.store||{});
+      state.settings = Object.assign(defaultState().settings, loaded.settings||{});
+      state.storeCostOverrides = loaded.storeCostOverrides || {};
+    } else {
+      state = defaultState();
+    }
+  } catch(e){
+    state = defaultState();
+  }
+}
+
+function queueSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await window.storage.set(SAVE_KEY, JSON.stringify(state), false);
+      const ind = document.getElementById('saveIndicator');
+      ind.classList.add('show');
+      setTimeout(()=>ind.classList.remove('show'), 900);
+    } catch(e){}
+  }, 700);
+}
+
+function fmt(n){
+  n = Math.floor(n);
+  if(n < 1000) return n.toLocaleString();
+  const units = ['K','M','B','T'];
+  let u = -1;
+  let val = n;
+  while(val >= 1000 && u < units.length-1){ val/=1000; u++; }
+  return val.toFixed(val<10?2:1) + units[u];
+}
+
+function upgradeCost(key){
+  const def = UPGRADE_DEFS[key];
+  const lvl = state.upgrades[key];
+  return Math.ceil(def.base * Math.pow(def.mult, lvl));
+}
+
+function storeCost(key){
+  if(state.storeCostOverrides[key] != null) return state.storeCostOverrides[key];
+  return STORE_DEFS[key].baseCost;
+}
+
+function computeStats(){
+  const u = state.upgrades, s = state.store;
+  let clickBase = 1 + u.hammer*1 + (s.reinforcedAnvil?3:0);
+  let clickMult = Math.pow(1 + UPGRADE_DEFS.bellows.amount, u.bellows) * (s.masterForge?2:1);
+  let passiveBase = u.apprentice*1;
+  let passiveMult = Math.pow(1 + UPGRADE_DEFS.furnace.amount, u.furnace) * (s.guildBanner?1.3:1);
+  let globalMult = (s.journeymanPapers?1.15:1) * (state.settings.globalMultiplier||1);
+  return {
+    clickPower: clickBase * clickMult * globalMult,
+    goldPerSec: passiveBase * passiveMult * globalMult
+  };
+}
+
+function strikeAnvil(e){
+  const stats = computeStats();
+  state.gold += stats.clickPower;
+  state.totalEarned += stats.clickPower;
+  state.totalClicks += 1;
+  spawnSpark(e, '+' + fmt(stats.clickPower));
+  renderAll();
+  queueSave();
+}
+
+function spawnSpark(e, text){
+  if(!state.settings.particlesEnabled) return;
+  const s = document.createElement('div');
+  s.className = 'spark';
+  s.textContent = text;
+  const rect = e.currentTarget.getBoundingClientRect();
+  s.style.left = (rect.left + rect.width/2 - 20 + (Math.random()*30-15)) + 'px';
+  s.style.top = (rect.top + rect.height/2) + 'px';
+  document.body.appendChild(s);
+  setTimeout(()=>s.remove(), 750);
+}
+
+function buyUpgrade(key){
+  const def = UPGRADE_DEFS[key];
+  if(def.max && state.upgrades[key] >= def.max) return;
+  const cost = upgradeCost(key);
+  if(state.gold < cost) return;
+  state.gold -= cost;
+  state.upgrades[key] += 1;
+  renderAll();
+  queueSave();
+}
+
+function buyStoreItem(key){
+  if(state.store[key]) return;
+  const cost = storeCost(key);
+  if(state.gold < cost) return;
+  state.gold -= cost;
+  state.store[key] = true;
+  renderAll();
+  queueSave();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+function toggleAdminTab(){
+  adminVisible = !adminVisible;
+  document.getElementById('adminTabBtn').style.display = adminVisible ? 'block' : 'none';
+  document.getElementById('adminToggleBtn').classList.toggle('active', adminVisible);
+  if(adminVisible){
+    renderAdmin();
+    switchTab('admin');
+  } else {
+    switchTab('upgrades');
+  }
+}
+
+function renderUpgrades(){
+  const el = document.getElementById('tab-upgrades');
+  el.innerHTML = '';
+  Object.keys(UPGRADE_DEFS).forEach(key=>{
+    const def = UPGRADE_DEFS[key];
+    const lvl = state.upgrades[key];
+    const maxed = def.max && lvl >= def.max;
+    const cost = upgradeCost(key);
+    const affordable = !maxed && state.gold >= cost;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="item-info">
+        <div class="name">${def.name}</div>
+        <div class="desc">${def.desc}</div>
+        <div class="level">level ${lvl}${def.max?(' / '+def.max):''}</div>
+      </div>
+      <button class="buy-btn" ${(maxed||!affordable)?'disabled':''} onclick="buyUpgrade('${key}')">
+        ${maxed ? 'Maxed' : 'Buy<span class="cost">'+fmt(cost)+' gold</span>'}
+      </button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderStore(){
+  const el = document.getElementById('tab-store');
+  el.innerHTML = '';
+  Object.keys(STORE_DEFS).forEach(key=>{
+    const def = STORE_DEFS[key];
+    const owned = state.store[key];
+    const cost = storeCost(key);
+    const affordable = !owned && state.gold >= cost;
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    row.innerHTML = `
+      <div class="item-info">
+        <div class="name">${def.name}</div>
+        <div class="desc">${def.desc}</div>
+      </div>
+      <button class="buy-btn ${owned?'owned':''}" ${(owned||!affordable)?'disabled':''} onclick="buyStoreItem('${key}')">
+        ${owned ? 'Owned' : 'Buy<span class="cost">'+fmt(cost)+' gold</span>'}
+      </button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderAdmin(){
+  const el = document.getElementById('tab-admin');
+  el.innerHTML = `
+    <div class="admin-note">This console manages the local save on this device. Since the game isn't multiplayer yet, there's one player to oversee: you.</div>
+
+    <div class="admin-section">
+      <h3>Treasury</h3>
+      <div class="admin-row">
+        <input type="number" id="grantAmount" placeholder="amount" min="0">
+        <button class="admin-btn" onclick="adminGrantGold()">Grant gold</button>
+        <button class="admin-btn" onclick="adminRemoveGold()">Remove gold</button>
+      </div>
+      <div class="admin-row">
+        <input type="number" id="setAmount" placeholder="set gold to">
+        <button class="admin-btn" onclick="adminSetGold()">Set gold</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Player record</h3>
+      <div class="info-grid">
+        <div class="info-cell"><div class="label">lifetime gold earned</div><div class="val">${fmt(state.totalEarned)}</div></div>
+        <div class="info-cell"><div class="label">total strikes</div><div class="val">${state.totalClicks.toLocaleString()}</div></div>
+        <div class="info-cell"><div class="label">upgrades owned</div><div class="val">${Object.values(state.upgrades).reduce((a,b)=>a+b,0)}</div></div>
+        <div class="info-cell"><div class="label">store items owned</div><div class="val">${Object.values(state.store).filter(Boolean).length} / ${Object.keys(STORE_DEFS).length}</div></div>
+        <div class="info-cell"><div class="label">save started</div><div class="val" style="font-size:13px;">${new Date(state.createdAt).toLocaleDateString()}</div></div>
+        <div class="info-cell"><div class="label">current gold</div><div class="val">${fmt(state.gold)}</div></div>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Manage store</h3>
+      <div id="storeManageList"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Game settings</h3>
+      <div class="settings-row">
+        <span class="name">Global income multiplier (${state.settings.globalMultiplier.toFixed(2)}x)</span>
+        <input type="range" id="globalMultSlider" min="0.5" max="3" step="0.05" value="${state.settings.globalMultiplier}">
+      </div>
+      <div class="settings-row">
+        <span class="name">Spark effects on strikes</span>
+        <button class="toggle-owned ${state.settings.particlesEnabled?'on':''}" onclick="adminToggleParticles()">${state.settings.particlesEnabled?'On':'Off'}</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>Reset</h3>
+      <button class="admin-btn danger" id="resetBtn" onclick="adminResetSave()">Reset save</button>
+      <div id="resetConfirm" class="confirm-inline" style="display:none;">Click again to permanently erase this save.</div>
+    </div>
+  `;
+
+  const list = document.getElementById('storeManageList');
+  Object.keys(STORE_DEFS).forEach(key=>{
+    const def = STORE_DEFS[key];
+    const owned = state.store[key];
+    const cost = storeCost(key);
+    const row = document.createElement('div');
+    row.className = 'store-manage-row';
+    row.innerHTML = `
+      <span class="name">${def.name}</span>
+      <div class="ctrls">
+        <input type="number" value="${cost}" onchange="adminSetStoreCost('${key}', this.value)">
+        <button class="toggle-owned ${owned?'on':''}" onclick="adminToggleOwned('${key}')">${owned?'Owned':'Not owned'}</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+
+  document.getElementById('globalMultSlider').addEventListener('input', (e)=>{
+    state.settings.globalMultiplier = parseFloat(e.target.value);
+    e.target.previousElementSibling ? null : null;
+    document.querySelector('#tab-admin .settings-row .name').textContent =
+      `Global income multiplier (${state.settings.globalMultiplier.toFixed(2)}x)`;
+    updateTopStats();
+    queueSave();
+  });
+}
+
+let resetArmed = false;
+function adminResetSave(){
+  if(!resetArmed){
+    resetArmed = true;
+    document.getElementById('resetConfirm').style.display = 'block';
+    setTimeout(()=>{ resetArmed = false; document.getElementById('resetConfirm').style.display='none'; }, 4000);
+    return;
+  }
+  state = defaultState();
+  resetArmed = false;
+  renderAll();
+  queueSave();
+}
+
+function adminGrantGold(){
+  const v = parseFloat(document.getElementById('grantAmount').value);
+  if(isNaN(v) || v <= 0) return;
+  state.gold += v;
+  state.totalEarned += v;
+  renderAll();
+  queueSave();
+}
+function adminRemoveGold(){
+  const v = parseFloat(document.getElementById('grantAmount').value);
+  if(isNaN(v) || v <= 0) return;
+  state.gold = Math.max(0, state.gold - v);
+  renderAll();
+  queueSave();
+}
+function adminSetGold(){
+  const v = parseFloat(document.getElementById('setAmount').value);
+  if(isNaN(v) || v < 0) return;
+  state.gold = v;
+  renderAll();
+  queueSave();
+}
+function adminToggleOwned(key){
+  state.store[key] = !state.store[key];
+  renderAll();
+  queueSave();
+}
+function adminSetStoreCost(key, val){
+  const v = parseInt(val, 10);
+  if(isNaN(v) || v < 0) return;
+  state.storeCostOverrides[key] = v;
+  queueSave();
+}
+function adminToggleParticles(){
+  state.settings.particlesEnabled = !state.settings.particlesEnabled;
+  renderAdmin();
+  queueSave();
+}
+
+function updateTopStats(){
+  const stats = computeStats();
+  document.getElementById('goldDisplay').textContent = fmt(state.gold);
+  document.getElementById('rateDisplay').textContent = '+' + stats.goldPerSec.toFixed(1) + '/s';
+  document.getElementById('perStrikeLabel').textContent = '+' + fmt(stats.clickPower) + ' gold';
+  document.getElementById('clickPowerVal').textContent = stats.clickPower.toFixed(1);
+  document.getElementById('goldPerSecVal').textContent = stats.goldPerSec.toFixed(1);
+  document.getElementById('lifetimeVal').textContent = fmt(state.totalEarned);
+  document.getElementById('clicksVal').textContent = state.totalClicks.toLocaleString();
+}
+
+function renderAll(){
+  updateTopStats();
+  renderUpgrades();
+  renderStore();
+  if(adminVisible) renderAdmin();
+}
+
+function tick(){
+  const stats = computeStats();
+  if(stats.goldPerSec > 0){
+    state.gold += stats.goldPerSec;
+    state.totalEarned += stats.goldPerSec;
+    updateTopStats();
+    renderUpgrades();
+    renderStore();
+    queueSave();
+  }
+}
+
+(async function init(){
+  await loadState();
+  renderAll();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
